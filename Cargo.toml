@@ -1,0 +1,15 @@
+[package]
+name = "black_box"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+paste = "*"
+proc-macro2 = "*"
+quote = "*"
+syn = {vesrion = "*"}
+
+[lib]
+proc-macro = true
