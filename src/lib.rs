@@ -1,47 +1,43 @@
-use proc_macro::TokenStream as CompilerTokenStream;
-use proc_macro2::{Span, TokenStream};
+use proc_macro::TokenStream;
 
-use quote::quote;
-use syn::{parse, BinOp, DeriveInput, Ident, Token};
+macro_rules! bind_parse_for_impl {
+    ({ ident: $name:ident, generics: ($impl_generics:ident, $ty_generics:ident, $where_clause:ident) } in $input:ident) => {
+        let syn::DeriveInput {
+            ident: $name,
+            generics,
+            ..
+        } = syn::parse($input).unwrap();
 
-//
-// This macro generates a trait that implements an operator from an operator assignment
-// and the "Clone" trait.
-//
-
-fn op_from_op_assign(input: CompilerTokenStream, op_name: &str, operator: BinOp) -> TokenStream {
-    let DeriveInput {
-        ident: name,
-        generics,
-        ..
-    } = parse(input).unwrap();
-
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let trait_name = Ident::new(op_name, Span::call_site());
-    let function_name = Ident::new(&op_name.to_lowercase(), Span::call_site());
-
-    quote! {
-        impl #impl_generics #trait_name for #name #ty_generics #where_clause {
-            type Output = Self;
-
-            fn #function_name (self, rhs: Self) -> Self {
-                let mut ret = self.clone();
-
-                ret #operator rhs;
-
-                ret
-            }
-        }
-    }
+        let ($impl_generics, $ty_generics, $where_clause) = generics.split_for_impl();
+    };
 }
 
+// This macro generates a trait that implements an operator from an operator assignment
+// and the "Clone" trait.
 macro_rules! derive_for_assign_op {
     ($name:ident for $t:tt) => {
         paste::paste! {
             #[proc_macro_derive($name)]
-            pub fn [<$name:lower _for_ $name:lower _assign>](input: CompilerTokenStream) -> CompilerTokenStream {
-                op_from_op_assign(input, stringify!($name), syn::BinOp::[<$name Assign>](<Token![$t]>::default())).into()
+            pub fn [<$name:lower _for_ $name:lower _assign>](input: TokenStream) -> TokenStream {
+                bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
+
+                let trait_name = syn::Ident::new(stringify!($name), proc_macro2::Span::call_site());
+                let function_name = syn::Ident::new(stringify!([<$name:lower>]), proc_macro2::Span::call_site());
+                let operator = syn::BinOp::[<$name Assign>](<syn::Token![$t]>::default());
+
+                quote::quote! {
+                    impl #impl_generics #trait_name for #name #ty_generics #where_clause {
+                        type Output = Self;
+
+                        fn #function_name (self, rhs: Self) -> Self {
+                            let mut value = self.clone();
+
+                            value #operator rhs;
+
+                            value
+                        }
+                    }
+                }.into()
             }
         }
     };
@@ -57,71 +53,26 @@ derive_for_assign_op!(BitOr for |=);
 derive_for_assign_op!(Shl for <<=);
 derive_for_assign_op!(Shr for >>=);
 
-//
 // These macros generate a "From" trait for integral types, assuming the type has a "From" trait
 // defined for a 64-bit integral type.
-//
+macro_rules! derive_from_impls {
+    ($name:ident for ($($t:ty),+) as $as_ty:ty) => {
+        paste::paste! {
+            #[proc_macro_derive([<From $name>])]
+            pub fn [<from_ $name:lower>](input: TokenStream) -> TokenStream {
+                bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
 
-#[proc_macro_derive(FromUnsigned)]
-pub fn from_unsigned(input: CompilerTokenStream) -> CompilerTokenStream {
-    let DeriveInput {
-        ident: name,
-        generics,
-        ..
-    } = parse(input).unwrap();
-
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    quote! {
-        impl #impl_generics From<u8> for #name #ty_generics #where_clause {
-            fn from(input: u8) -> Self {
-                Self::from(input as u64)
-            }
-        }
-
-        impl #impl_generics From<u16> for #name #ty_generics #where_clause {
-            fn from(input: u16) -> Self {
-                Self::from(input as u64)
-            }
-        }
-
-        impl #impl_generics From<u32> for #name #ty_generics #where_clause {
-            fn from(input: u32) -> Self {
-                Self::from(input as u64)
+                quote::quote! {
+                    $(
+                        impl #impl_generics From<$t> for #name #ty_generics #where_clause {
+                            fn from(input: $t) -> Self { Self::from(input as $as_ty) }
+                        }
+                    )*
+                }.into()
             }
         }
     }
-    .into()
 }
 
-#[proc_macro_derive(FromSigned)]
-pub fn from_signed(input: CompilerTokenStream) -> CompilerTokenStream {
-    let DeriveInput {
-        ident: name,
-        generics,
-        ..
-    } = parse(input).unwrap();
-
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    quote! {
-        impl #impl_generics From<i8> for #name #ty_generics #where_clause {
-            fn from(input: i8) -> Self {
-                Self::from(input as i64)
-            }
-        }
-
-        impl #impl_generics From<i16> for #name #ty_generics #where_clause {
-            fn from(input: i16) -> Self {
-                Self::from(input as i64)
-            }
-        }
-
-        impl #impl_generics From<i32> for #name #ty_generics #where_clause {
-            fn from(input: i32) -> Self {
-                Self::from(input as i64)
-            }
-        }
-    }
-    .into()
-}
+derive_from_impls!(Unsigned for (u8, u16, u32) as u64);
+derive_from_impls!(Signed for (i8, i16, i32) as i64);
