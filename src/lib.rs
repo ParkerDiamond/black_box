@@ -1,12 +1,15 @@
 use proc_macro::TokenStream;
+use proc_macro2::Span;
+
+use syn::{parse, BinOp, DeriveInput, Ident, Token};
 
 macro_rules! bind_parse_for_impl {
     ({ ident: $name:ident, generics: ($impl_generics:ident, $ty_generics:ident, $where_clause:ident) } in $input:ident) => {
-        let syn::DeriveInput {
+        let DeriveInput {
             ident: $name,
             generics,
             ..
-        } = syn::parse($input).unwrap();
+        } = parse($input).unwrap();
 
         let ($impl_generics, $ty_generics, $where_clause) = generics.split_for_impl();
     };
@@ -21,9 +24,9 @@ macro_rules! derive_for_assign_op {
             pub fn [<$name:lower _for_ $name:lower _assign>](input: TokenStream) -> TokenStream {
                 bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
 
-                let trait_name = syn::Ident::new(stringify!($name), proc_macro2::Span::call_site());
-                let function_name = syn::Ident::new(stringify!([<$name:lower>]), proc_macro2::Span::call_site());
-                let operator = syn::BinOp::[<$name Assign>](<syn::Token![$t]>::default());
+                let trait_name = Ident::new(stringify!($name), Span::call_site());
+                let function_name = Ident::new(stringify!([<$name:lower>]), Span::call_site());
+                let operator = BinOp::[<$name Assign>](<Token![$t]>::default());
 
                 quote::quote! {
                     impl #impl_generics #trait_name for #name #ty_generics #where_clause {
@@ -31,9 +34,7 @@ macro_rules! derive_for_assign_op {
 
                         fn #function_name (self, rhs: Self) -> Self {
                             let mut value = self.clone();
-
                             value #operator rhs;
-
                             value
                         }
                     }
@@ -62,13 +63,11 @@ macro_rules! derive_from_impls {
             pub fn [<from_ $name:lower>](input: TokenStream) -> TokenStream {
                 bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
 
-                quote::quote! {
-                    $(
-                        impl #impl_generics From<$t> for #name #ty_generics #where_clause {
-                            fn from(input: $t) -> Self { Self::from(input as $as_ty) }
-                        }
-                    )*
-                }.into()
+                quote::quote! {$(
+                    impl #impl_generics From<$t> for #name #ty_generics #where_clause {
+                        fn from(input: $t) -> Self { Self::from(input as $as_ty) }
+                    }
+                )*}.into()
             }
         }
     }
