@@ -9,7 +9,7 @@ edition = "2021"
 paste = "*"
 proc-macro2 = "*"
 quote = "*"
-syn = {vesrion = "*"}
+syn = "*"
 
 [lib]
 proc-macro = true
