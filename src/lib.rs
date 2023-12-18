@@ -47,6 +47,7 @@ macro_rules! derive_for_assign_op {
 derive_for_assign_op!(Add for +=);
 derive_for_assign_op!(Sub for -=);
 derive_for_assign_op!(Mul for *=);
+derive_for_assign_op!(Div for /=);
 derive_for_assign_op!(Rem for %=);
 derive_for_assign_op!(BitXor for ^=);
 derive_for_assign_op!(BitAnd for &=);
