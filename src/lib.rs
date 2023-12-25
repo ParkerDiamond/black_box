@@ -76,3 +76,25 @@ macro_rules! derive_from_impls {
 
 derive_from_impls!(Unsigned for (u8, u16, u32) as u64);
 derive_from_impls!(Signed for (i8, i16, i32) as i64);
+
+// These macros generate a "PartialEq" trait for integral types, assuming the type has a "PartialEq" trait
+// defined for a 64-bit integral type.
+macro_rules! derive_partial_eq_impls {
+    ($name:ident for ($($t:ty),+) as $as_ty:ty) => {
+        paste::paste! {
+            #[proc_macro_derive([<PartialEq $name>])]
+            pub fn [<eq $name:lower>](input: TokenStream) -> TokenStream {
+                bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
+
+                quote::quote! {$(
+                    impl #impl_generics PartialEq<$t> for #name #ty_generics #where_clause {
+                        fn eq(&self, other: &$t) -> bool { self == &(*other as $as_ty) }
+                    }
+                )*}.into()
+            }
+        }
+    }
+}
+
+derive_partial_eq_impls!(Unsigned for (u8, u16, u32) as u64);
+derive_partial_eq_impls!(Signed for (i8, i16, i32) as i64);
