@@ -98,3 +98,18 @@ macro_rules! derive_partial_eq_impls {
 
 derive_partial_eq_impls!(Unsigned for (u8, u16, u32) as u64);
 derive_partial_eq_impls!(Signed for (i8, i16, i32) as i64);
+
+// This macro generates a From<String> trait for types, assuming the type has a "From<&str>" trait impl
+#[proc_macro_derive(FromStr)]
+pub fn from_string(input: TokenStream) -> TokenStream {
+    bind_parse_for_impl!({ ident: name, generics: (impl_generics, ty_generics, where_clause) } in input);
+
+    quote::quote! {
+        impl #impl_generics From<String> for #name #ty_generics #where_clause {
+            fn from(_item: String) -> Self {
+                Self::from(_item.as_str())
+            }
+        }
+    }
+    .into()
+}
